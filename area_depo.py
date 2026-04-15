@@ -127,6 +127,8 @@ if st.session_state["rol"] == "Depo":
     sayfalar = ["📦 Depo Yönetim Ekranı", "📊 Genel Stok Envanteri"]
 elif st.session_state["rol"] == "Finans":
     sayfalar = ["🧾 Finans & Muhasebe", "📊 Genel Stok Envanteri"]
+elif st.session_state["rol"] == "Servis":
+    sayfalar = ["📊 Genel Stok Envanteri"]
 elif st.session_state["rol"] == "Yönetici":
     sayfalar = ["📦 Depo Yönetim Ekranı", "💼 Yönetici", "🧾 Finans & Muhasebe", "📊 Genel Stok Envanteri", "📈 Yönetim Paneli"]
 
@@ -264,6 +266,8 @@ elif secilen_sayfa == "📊 Genel Stok Envanteri":
         st.markdown("---")
         
     st.subheader("📦 Mevcut Depo Stokları (Kategori Bazlı)")
+    st.info("ℹ️ Servis Yetkisi: Stok bilgilerini sadece görüntüleyebilirsiniz.") if st.session_state["rol"] == "Servis" else None
+    
     stok_kategorize = {k: [] for k in KATEGORILER}
     stok_kategorize["Diğer/Tanımsız"] = [] 
     
@@ -394,7 +398,7 @@ elif secilen_sayfa == "📈 Yönetim Paneli":
             yeni_sifre = c_sifre.text_input("Şifre:")
             c_isim, c_rol = st.columns(2)
             yeni_isim = c_isim.text_input("Personel İsmi:")
-            yeni_rol = c_rol.selectbox("Yetki Seviyesi:", ["Depo", "Finans", "Yönetici"])
+            yeni_rol = c_rol.selectbox("Yetki Seviyesi:", ["Depo", "Finans", "Servis", "Yönetici"])
             
             if st.form_submit_button("Sisteme Ekle"):
                 if yeni_kadi == "" or yeni_sifre == "": st.error("Kullanıcı adı ve şifre boş bırakılamaz!")
@@ -412,7 +416,7 @@ elif secilen_sayfa == "📈 Yönetim Paneli":
             with st.form("guncelle_pers_form"):
                 p_verisi = kullanicilar[secilen_kullanici]
                 yeni_isim = st.text_input("Görünür İsim:", value=p_verisi["isim"])
-                yeni_rol = st.selectbox("Sistem Yetkisi:", ["Depo", "Finans", "Yönetici"], index=["Depo", "Finans", "Yönetici"].index(p_verisi["rol"]))
+                yeni_rol = st.selectbox("Sistem Yetkisi:", ["Depo", "Finans", "Servis", "Yönetici"], index=["Depo", "Finans", "Servis", "Yönetici"].index(p_verisi["rol"]))
                 yeni_sifre = st.text_input("Giriş Şifresi:", value=p_verisi["sifre"])
                 
                 if st.form_submit_button("🔄 Bilgileri Kaydet"):
