@@ -410,13 +410,26 @@ elif secilen_sayfa == "📈 Yönetim Paneli":
                     
         st.markdown("---")
         
-        st.markdown("**⚙️ Personel Bilgilerini Güncelle**")
+       st.markdown("**⚙️ Personel Bilgilerini Güncelle**")
         secilen_kullanici = st.selectbox("Düzenlenecek Personeli Seç:", list(kullanicilar.keys()))
         if secilen_kullanici:
             with st.form("guncelle_pers_form"):
                 p_verisi = kullanicilar[secilen_kullanici]
                 yeni_isim = st.text_input("Görünür İsim:", value=p_verisi["isim"])
-                yeni_rol = st.selectbox("Sistem Yetkisi:", ["Depo", "Finans", "Servis", "Yönetici"], index=["Depo", "Finans", "Servis", "Yönetici"].index(p_verisi["rol"]))
+                
+                # --- BURASI KRİTİK: Hata önleyici yapı ---
+                roller = ["Depo", "Finans", "Servis", "Yönetici"]
+                mevcut_rol = p_verisi.get("rol", "Depo") # Rol yoksa Depo say
+                
+                # Eğer veritabanındaki rol listede yoksa hata verme, varsayılan olarak ilkini seç
+                try:
+                    rol_index = roller.index(mevcut_rol)
+                except ValueError:
+                    rol_index = 0 
+                
+                yeni_rol = st.selectbox("Sistem Yetkisi:", roller, index=rol_index)
+                # ---------------------------------------
+                
                 yeni_sifre = st.text_input("Giriş Şifresi:", value=p_verisi["sifre"])
                 
                 if st.form_submit_button("🔄 Bilgileri Kaydet"):
