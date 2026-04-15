@@ -33,10 +33,13 @@ def veritabanini_yukle():
             if "stok" not in data: data["stok"] = {}; tamir_edildi = True
             if "hareketler" not in data: data["hareketler"] = []; tamir_edildi = True
             if "id_sayaci" not in data: data["id_sayaci"] = 1; tamir_edildi = True
+            
+            # --- VARSAYILAN KULLANICI LİSTESİ (BURASI DÜZELTİLDİ) ---
             if "kullanicilar" not in data:
                 data["kullanicilar"] = {
                     "depo": {"sifre": "1234", "rol": "Depo", "isim": "Depo Sorumlusu"},
                     "muhasebe": {"sifre": "1234", "rol": "Finans", "isim": "Finans Departmanı"},
+                    "servis": {"sifre": "1234", "rol": "Servis", "isim": "Servis Personeli"},
                     "admin": {"sifre": "admin123", "rol": "Yönetici", "isim": "Sistem Yöneticisi"}
                 }
                 tamir_edildi = True
@@ -52,6 +55,7 @@ def veritabanini_yukle():
         "kullanicilar": {
             "depo": {"sifre": "1234", "rol": "Depo", "isim": "Depo Sorumlusu"},
             "muhasebe": {"sifre": "1234", "rol": "Finans", "isim": "Finans Departmanı"},
+            "servis": {"sifre": "1234", "rol": "Servis", "isim": "Servis Personeli"},
             "admin": {"sifre": "admin123", "rol": "Yönetici", "isim": "Sistem Yöneticisi"}
         }
     }
@@ -90,7 +94,7 @@ if not st.session_state["logged_in"]:
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
         with st.form("login_form"):
-            k_adi = st.text_input("👤 Kullanıcı Adı (Örn: admin, depo, muhasebe):").strip().lower()
+            k_adi = st.text_input("👤 Kullanıcı Adı:").strip().lower()
             sifre = st.text_input("🔑 Şifre:", type="password")
             giris_btn = st.form_submit_button("Giriş Yap", use_container_width=True)
             
@@ -353,7 +357,7 @@ elif secilen_sayfa == "📈 Yönetim Paneli":
 
     # ---------------- TAB 2: SİLME YÖNETİMİ ----------------
     with tab2:
-        st.subheader("🗑️ Test / Hatalı Kayıt (İşlem) Silme")
+        st.subheader("🗑️ Test / Hatalı Kayıt Silme")
         if db["hareketler"]:
             sil_secim = st.selectbox("İptal Edilecek İşlemi Seçin:", ["Seçiniz..."] + [f"{h['id']} - {h['firma']} ({h['durum']})" for h in db["hareketler"]])
             if sil_secim != "Seçiniz..." and st.button("🚨 Seçili İşlemi Kalıcı Olarak Sil", type="primary"):
@@ -362,18 +366,17 @@ elif secilen_sayfa == "📈 Yönetim Paneli":
                 if idx is not None:
                     db["stok"][db["hareketler"][idx]["urun"]] += db["hareketler"][idx]["adet"] 
                     db["hareketler"].pop(idx) 
-                    veritabanini_kaydet(db); st.success("İşlem silindi ve ürünler stoğa döndü!"); st.rerun()
-        else: st.info("Sistemde silinecek hareket/işlem kaydı yok.")
+                    veritabanini_kaydet(db); st.success("Silindi ve stoğa döndü!"); st.rerun()
+        else: st.info("Silinecek işlem yok.")
         
         st.markdown("---")
         st.subheader("🧹 Ürün Katalogdan Tamamen Silme")
         if db["stok"]:
             silinecek_urun = st.selectbox("Katalogdan Silinecek Ürünü Seçin:", ["Seçiniz..."] + sorted(list(db["stok"].keys())))
-            if silinecek_urun != "Seçiniz..." and st.button("🚨 Seçili Ürünü Katalogdan ve Stoktan Sil", type="primary"):
+            if silinecek_urun != "Seçiniz..." and st.button("🚨 Seçili Ürünü Katalogdan Sil", type="primary"):
                 if silinecek_urun in db["stok"]: del db["stok"][silinecek_urun]
                 if silinecek_urun in db["urunler"]: del db["urunler"][silinecek_urun]
-                veritabanini_kaydet(db); st.success(f"✅ {silinecek_urun} sistemden silindi!"); st.rerun()
-        else: st.write("Sistemde silinecek hiçbir ürün yok.")
+                veritabanini_kaydet(db); st.success(f"✅ {silinecek_urun} silindi!"); st.rerun()
 
     # ---------------- TAB 3: KULLANICI YÖNETİMİ ----------------
     with tab3:
@@ -386,7 +389,7 @@ elif secilen_sayfa == "📈 Yönetim Paneli":
         st.markdown("**➕ Yeni Kullanıcı Ekle**")
         with st.form("yeni_kullanici_form"):
             c_kadi, c_sifre = st.columns(2)
-            yeni_kadi = c_kadi.text_input("Kullanıcı Adı (Küçük harf):").strip().lower()
+            yeni_kadi = c_kadi.text_input("Kullanıcı Adı:").strip().lower()
             yeni_sifre = c_sifre.text_input("Şifre:")
             c_isim, c_rol = st.columns(2)
             yeni_isim = c_isim.text_input("Personel İsmi:")
@@ -394,7 +397,7 @@ elif secilen_sayfa == "📈 Yönetim Paneli":
             
             if st.form_submit_button("Sisteme Ekle"):
                 if yeni_kadi == "" or yeni_sifre == "": st.error("Eksik bilgi!")
-                elif yeni_kadi in kullanicilar: st.error("Bu kullanıcı adı zaten var!")
+                elif yeni_kadi in kullanicilar: st.error("Kullanıcı adı mevcut!")
                 else:
                     db["kullanicilar"][yeni_kadi] = {"sifre": yeni_sifre, "rol": yeni_rol, "isim": yeni_isim}
                     veritabanini_kaydet(db); st.success(f"{yeni_isim} eklendi!"); st.rerun()
@@ -405,21 +408,19 @@ elif secilen_sayfa == "📈 Yönetim Paneli":
         if secilen_kullanici:
             with st.form("guncelle_pers_form"):
                 p_verisi = kullanicilar[secilen_kullanici]
-                yeni_isim = st.text_input("Görünür İsim:", value=p_verisi["isim"])
+                y_isim = st.text_input("Görünür İsim:", value=p_verisi["isim"])
                 
                 # --- HATA ÖNLEYİCİ ROL SEÇİMİ ---
                 roller = ["Depo", "Finans", "Servis", "Yönetici"]
-                mevcut_rol = p_verisi.get("rol", "Depo")
-                try:
-                    rol_index = roller.index(mevcut_rol)
-                except ValueError:
-                    rol_index = 0
+                m_rol = p_verisi.get("rol", "Depo")
+                try: r_idx = roller.index(m_rol)
+                except ValueError: r_idx = 0
                 
-                yeni_rol = st.selectbox("Sistem Yetkisi:", roller, index=rol_index)
-                yeni_sifre = st.text_input("Giriş Şifresi:", value=p_verisi["sifre"])
+                y_rol = st.selectbox("Sistem Yetkisi:", roller, index=r_idx)
+                y_sifre = st.text_input("Giriş Şifresi:", value=p_verisi["sifre"])
                 
                 if st.form_submit_button("🔄 Bilgileri Kaydet"):
-                    db["kullanicilar"][secilen_kullanici]["isim"] = yeni_isim
-                    db["kullanicilar"][secilen_kullanici]["rol"] = yeni_rol
-                    db["kullanicilar"][secilen_kullanici]["sifre"] = yeni_sifre
+                    db["kullanicilar"][secilen_kullanici]["isim"] = y_isim
+                    db["kullanicilar"][secilen_kullanici]["rol"] = y_rol
+                    db["kullanicilar"][secilen_kullanici]["sifre"] = y_sifre
                     veritabanini_kaydet(db); st.success("Güncellendi!"); st.rerun()
