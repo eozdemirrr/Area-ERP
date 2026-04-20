@@ -154,12 +154,43 @@ elif secilen_sayfa == "💼 Yönetici":
     else:
         for islem in bekleyenler:
             with st.expander(f"🔴 {islem['firma']} | {islem['tarih_cikis']}", expanded=True):
-                st.write(f"Ürün: {islem['urun']} ({islem['adet']} Adet)")
+                # YENİ DÜZENLEME FORMU BURADA
                 with st.form(f"fiyat_form_{islem['id']}"):
+                    c_f, c_u, c_a = st.columns([2, 3, 1])
+                    
+                    yeni_firma = c_f.text_input("Firma / Şantiye:", value=islem['firma'])
+                    
+                    urun_listesi = sorted(list(db["stok"].keys()))
+                    if islem['urun'] not in urun_listesi:
+                        urun_listesi.insert(0, islem['urun'])
+                    try: u_idx = urun_listesi.index(islem['urun'])
+                    except: u_idx = 0
+                    
+                    yeni_urun = c_u.selectbox("Ürün:", urun_listesi, index=u_idx)
+                    yeni_adet = c_a.number_input("Adet:", min_value=1, value=int(islem['adet']), step=1)
+                    
                     y_fiyat = st.number_input("Toplam Satış Bedeli (₺):", min_value=0.0, step=500.0)
-                    if st.form_submit_button("💰 Bedeli Onayla"):
-                        islem["fiyat"], islem["durum"] = y_fiyat, "Fatura Bekliyor"
-                        islem["tarih_onay"] = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+                    
+                    c_b1, c_b2 = st.columns(2)
+                    btn_guncelle = c_b1.form_submit_button("🔄 Bilgileri Güncelle", use_container_width=True)
+                    btn_onayla = c_b2.form_submit_button("💰 Bedeli Onayla", use_container_width=True)
+                    
+                    if btn_guncelle or btn_onayla:
+                        eski_urun = islem["urun"]
+                        eski_adet = islem["adet"]
+                        
+                        # Stok düzeltme mekanizması
+                        db["stok"][eski_urun] = db["stok"].get(eski_urun, 0) + eski_adet
+                        db["stok"][yeni_urun] = db["stok"].get(yeni_urun, 0) - yeni_adet
+                        
+                        islem["firma"] = yeni_firma.upper()
+                        islem["urun"] = yeni_urun
+                        islem["adet"] = yeni_adet
+                        
+                        if btn_onayla:
+                            islem["fiyat"], islem["durum"] = y_fiyat, "Fatura Bekliyor"
+                            islem["tarih_onay"] = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+                            
                         if veritabanini_kaydet(db): st.rerun()
 
     st.markdown("---")
