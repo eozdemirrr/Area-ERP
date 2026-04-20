@@ -39,11 +39,17 @@ def veritabanini_yukle():
                     "admin": {"sifre": "admin123", "rol": "Yönetici", "isim": "Sistem Yöneticisi"}
                 }
                 tamir_edildi = True
+            
+            # --- YENİ EKLENEN: DİNAMİK KATEGORİ VERİTABANI ---
+            if "kategoriler" not in data:
+                data["kategoriler"] = ["VRF Dış", "VRF İç", "Duvar Tipi Split", "Ticari Tip Split", "Multi Dış", "Multi İç", "Yedek Parça", "Aksesuar", "Diğer"]
+                tamir_edildi = True
+
             if tamir_edildi: veritabanini_kaydet(data)
             return data
     except:
         st.error("⚠️ Bulut veritabanına bağlanılamadı!")
-    return {"stok": {}, "hareketler": [], "urunler": {}, "id_sayaci": 1, "kullanicilar": {}}
+    return {"stok": {}, "hareketler": [], "urunler": {}, "id_sayaci": 1, "kullanicilar": {}, "kategoriler": ["VRF Dış", "VRF İç", "Duvar Tipi Split", "Ticari Tip Split", "Multi Dış", "Multi İç", "Yedek Parça", "Aksesuar", "Diğer"]}
 
 def veritabanini_kaydet(db):
     try:
@@ -66,7 +72,9 @@ def son_3_ayda_mi(tarih_str):
     except: return False
 
 db = veritabanini_yukle()
-KATEGORILER = ["VRF Dış", "VRF İç", "Duvar Tipi Split", "Ticari Tip Split", "Yedek Parça", "Aksesuar", "Diğer"]
+
+# --- ARTIK KATEGORİLER VERİTABANINDAN ÇEKİLİYOR ---
+KATEGORILER = db.get("kategoriler", ["VRF Dış", "VRF İç", "Duvar Tipi Split", "Ticari Tip Split", "Multi Dış", "Multi İç", "Yedek Parça", "Aksesuar", "Diğer"])
 
 # =====================================================================
 # GİRİŞ SİSTEMİ
@@ -154,7 +162,6 @@ elif secilen_sayfa == "💼 Yönetici":
     else:
         for islem in bekleyenler:
             with st.expander(f"🔴 {islem['firma']} | {islem['tarih_cikis']}", expanded=True):
-                # YENİ DÜZENLEME FORMU BURADA
                 with st.form(f"fiyat_form_{islem['id']}"):
                     c_f, c_u, c_a = st.columns([2, 3, 1])
                     
@@ -179,7 +186,6 @@ elif secilen_sayfa == "💼 Yönetici":
                         eski_urun = islem["urun"]
                         eski_adet = islem["adet"]
                         
-                        # Stok düzeltme mekanizması
                         db["stok"][eski_urun] = db["stok"].get(eski_urun, 0) + eski_adet
                         db["stok"][yeni_urun] = db["stok"].get(yeni_urun, 0) - yeni_adet
                         
@@ -253,7 +259,11 @@ elif secilen_sayfa == "📊 Genel Stok Envanteri":
         
         html_t = ""
         st_var = False
-        for k in KATEGORILER + ["Diğer"]:
+        
+        # Mükerrer "Diğer" tablosu çıkmasını engelleyen yapı
+        gosterilecek_katlar = list(dict.fromkeys(KATEGORILER + ["Diğer"]))
+        
+        for k in gosterilecek_katlar:
             urunler = stok_k.get(k, [])
             if urunler:
                 st_var = True
@@ -271,7 +281,9 @@ elif secilen_sayfa == "📊 Genel Stok Envanteri":
 # --- 5. YÖNETİM PANELİ ---
 elif secilen_sayfa == "📈 Yönetim Paneli":
     st.header("📈 Area Yönetim Paneli")
-    t1, t2, t3 = st.tabs(["📊 Satış Raporları", "🗑️ Veri Yönetimi", "👥 Kullanıcı Yönetimi"])
+    # YENİ: Kategori Yönetimi sekmesi eklendi
+    t1, t2, t3, t4 = st.tabs(["📊 Satış Raporları", "🗑️ Veri Yönetimi", "👥 Kullanıcı Yönetimi", "🏷️ Kategori Yönetimi"])
+    
     with t1:
         tamam = [h for h in db["hareketler"] if h["durum"] == "Tamamlandı"]
         if tamam:
@@ -312,3 +324,30 @@ elif secilen_sayfa == "📈 Yönetim Paneli":
                 if st.form_submit_button("Kaydet"):
                     db["kullanicilar"][sec_k] = {"isim": y_i, "rol": y_r, "sifre": y_s}
                     if veritabanini_kaydet(db): st.success("Güncellendi!"); st.rerun()
+                    
+    # YENİ: Kategori Ekleme/Çıkarma Modülü
+    with t4:
+        st.subheader("🏷️ Kategori Yönetimi")
+        mevcut_kategoriler = db.get("kategoriler", KATEGORILER)
+        
+        st.markdown("**Sistemde Kayıtlı Kategoriler:**")
+        st.info(", ".join(mevcut_kategoriler))
+        
+        st.markdown("---")
+        with st.form("kategori_ekle_form"):
+            yeni_kat = st.text_input("Yeni Kategori Ekle (Örn: VRF Aksesuar):").strip()
+            if st.form_submit_button("➕ Sisteme Ekle"):
+                if yeni_kat and yeni_kat not in mevcut_kategoriler:
+                    db["kategoriler"] = mevcut_kategoriler + [yeni_kat]
+                    if veritabanini_kaydet(db): st.success(f"'{yeni_kat}' başarıyla eklendi!"); st.rerun()
+                elif yeni_kat in mevcut_kategoriler:
+                    st.error("Bu kategori zaten mevcut!")
+                    
+        st.markdown("---")
+        silinecek_kat = st.selectbox("Silinecek Kategori Seçin:", ["Seçiniz..."] + mevcut_kategoriler)
+        if silinecek_kat != "Seçiniz..." and st.button("🚨 Seçili Kategoriyi Sil", type="primary"):
+            if silinecek_kat == "Diğer":
+                st.error("⚠️ 'Diğer' kategorisi sistemin düzgün çalışması için silinemez!")
+            else:
+                db["kategoriler"].remove(silinecek_kat)
+                if veritabanini_kaydet(db): st.success(f"'{silinecek_kat}' sistemden silindi!"); st.rerun()
