@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import plotly.express as px
 import tempfile
-import re # Boşluk temizliği için eklendi
+import re
 
 # --- SAYFA AYARLARI ---
 st.set_page_config(page_title="Area Kurumsal Yönetim", layout="wide", page_icon="🏢")
@@ -23,7 +23,6 @@ FIREBASE_URL = "https://areaerp-default-rtdb.europe-west1.firebasedatabase.app/a
 
 def veritabanini_yukle():
     try:
-        # Önbelleğe takılmamak için zaman damgası eklendi
         cevap = requests.get(f"{FIREBASE_URL}?nocache={datetime.now().timestamp()}")
         if cevap.status_code == 200:
             data = cevap.json()
@@ -42,7 +41,6 @@ def veritabanini_yukle():
                 }
                 tamir_edildi = True
             
-            # Kategori veritabanı eklendi (Multi Dış/İç dahil)
             if "kategoriler" not in data:
                 data["kategoriler"] = ["VRF Dış", "VRF İç", "Multi Dış", "Multi İç", "Duvar Tipi Split", "Ticari Tip Split", "Yedek Parça", "Aksesuar", "Diğer"]
                 tamir_edildi = True
@@ -62,7 +60,6 @@ def veritabanini_kaydet(db):
         return False
 
 def isim_temizle(metin):
-    # Çift boşlukları ve yasaklı karakterleri temizleyen kod
     yasakli = [".", "$", "#", "[", "]", "/"]
     metin = str(metin).strip()
     metin = re.sub(r'\s+', ' ', metin)
@@ -134,31 +131,79 @@ if st.sidebar.button("🚪 Güvenli Çıkış Yap", use_container_width=True):
     st.session_state["logged_in"] = False
     st.rerun()
 
-# --- 1. DEPO YÖNETİM ---
+# --- 1. DEPO YÖNETİM (YENİ SEPET MANTIĞI) ---
 if secilen_sayfa == "📦 Depo Yönetim Ekranı":
     st.header("📦 Depo Çıkış Paneli")
+    
+    # Sepeti başlat
+    if "sepet" not in st.session_state:
+        st.session_state["sepet"] = []
+
     if not db["stok"]: st.warning("⚠️ Sistemde stok bulunmamaktadır.")
     else:
-        with st.form("depo_cikis_formu", clear_on_submit=True):
-            urun = st.selectbox("Çıkan Ürün (Cihaz):", sorted(list(db["stok"].keys())))
-            firma = st.text_input("Gideceği Firma / Şantiye:").upper().strip()
-            c3, c4 = st.columns(2)
+        st.subheader("🛒 1. Çıkış Sepetine Ürün Ekle")
+        with st.form("sepete_ekle_formu", clear_on_submit=True):
+            c_urun, c_adet = st.columns([3, 1])
+            urun = c_urun.selectbox("Çıkan Ürün (Cihaz):", sorted(list(db["stok"].keys())))
             mevcut = db["stok"].get(urun, 0)
+            adet = c_adet.number_input(f"Miktar (Mevcut: {mevcut})", min_value=1, step=1)
             
-            # ALİCAN İÇİN DEĞİŞİKLİK: max_value kaldırıldı
-            adet = c3.number_input(f"Miktar (Mevcut: {mevcut})", min_value=1, step=1)
-            notlar = c4.text_input("Ek Notlar / İrsaliye No:")
-            
-            if st.form_submit_button("🚚 DEPODAN ÇIKIŞ YAP"):
-                if firma == "": st.error("Lütfen Firma Adını Yazın!")
-                elif adet > mevcut: st.error(f"❌ Stok yetersiz! Mevcutta sadece {mevcut} adet var.")
+            if st.form_submit_button("➕ Sepete Ekle"):
+                if adet > mevcut: 
+                    st.error(f"❌ Stok yetersiz! {urun} için mevcut adet: {mevcut}")
                 else:
-                    taze_db = veritabanini_yukle()
-                    if taze_db:
-                        taze_db["stok"][urun] -= adet
-                        taze_db["hareketler"].insert(0, {"id": taze_db["id_sayaci"], "tarih_cikis": datetime.now().strftime("%d.%m.%Y %H:%M:%S"), "tarih_onay": "-", "tarih_fatura": "-", "urun": urun, "adet": adet, "firma": firma, "notlar": notlar, "durum": "Fiyat Bekliyor", "fiyat": 0, "islem_yapan": st.session_state["kullanici"]})
-                        taze_db["id_sayaci"] += 1
-                        if veritabanini_kaydet(taze_db): st.success("✅ Çıkış Başarılı! Yönetici onayına iletildi."); st.rerun()
+                    st.session_state["sepet"].append({"urun": urun, "adet": adet})
+                    st.success(f"✅ {adet} adet '{urun}' sepete eklendi!")
+                    st.rerun()
+
+        if st.session_state["sepet"]:
+            st.markdown("---")
+            st.subheader("📋 2. Sepetteki Ürünler ve Toplu Çıkış İşlemi")
+            
+            # Ekranda şık bir sepet tablosu gösteriyoruz
+            df_sepet = pd.DataFrame(st.session_state["sepet"])
+            df_sepet.index += 1
+            df_sepet.columns = ["Ürün", "Adet"]
+            st.table(df_sepet)
+            
+            if st.button("🗑️ Sepeti Temizle"):
+                st.session_state["sepet"] = []
+                st.rerun()
+                
+            with st.form("depo_cikis_formu", clear_on_submit=True):
+                firma = st.text_input("Gideceği Firma / Şantiye:").upper().strip()
+                notlar = st.text_input("Ek Notlar / İrsaliye No:")
+                
+                if st.form_submit_button("🚀 SEPETTEKİLERİ DEPODAN ÇIK"):
+                    if firma == "": 
+                        st.error("Lütfen Firma Adını Yazın!")
+                    else:
+                        taze_db = veritabanini_yukle()
+                        if taze_db:
+                            zaman = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+                            for item in st.session_state["sepet"]:
+                                u = item["urun"]
+                                a = item["adet"]
+                                taze_db["stok"][u] = taze_db["stok"].get(u, 0) - a
+                                taze_db["hareketler"].insert(0, {
+                                    "id": taze_db["id_sayaci"], 
+                                    "tarih_cikis": zaman, 
+                                    "tarih_onay": "-", 
+                                    "tarih_fatura": "-", 
+                                    "urun": u, 
+                                    "adet": a, 
+                                    "firma": firma, 
+                                    "notlar": notlar, 
+                                    "durum": "Fiyat Bekliyor", 
+                                    "fiyat": 0, 
+                                    "islem_yapan": st.session_state["kullanici"]
+                                })
+                                taze_db["id_sayaci"] += 1
+                            
+                            if veritabanini_kaydet(taze_db): 
+                                st.session_state["sepet"] = [] # Başarılıysa sepeti sıfırla
+                                st.success("✅ Çıkış Başarılı! Tüm ürünler Yönetici onayına iletildi.")
+                                st.rerun()
 
     st.markdown("---")
     st.subheader("🕒 Son 3 Ayın Çıkış Kayıtları")
@@ -176,7 +221,6 @@ elif secilen_sayfa == "💼 Yönetici":
     else:
         for islem in bekleyenler:
             with st.expander(f"🔴 {islem['firma']} | {islem['tarih_cikis']}", expanded=True):
-                # YÖNETİCİ DÜZENLEME FORMU
                 with st.form(f"fiyat_form_{islem['id']}"):
                     c_f, c_u, c_a = st.columns([2, 3, 1])
                     
@@ -253,7 +297,6 @@ elif secilen_sayfa == "📊 Genel Stok Envanteri":
     if st.session_state["rol"] in ["Yönetici", "Depo"]:
         st.subheader("➕ Yeni Cihaz / Ürün Girişi")
         
-        # ALİCAN İÇİN YENİ ÖZELLİK: Mevcut ürünü otomatik doldurma
         mevcut_urunler_listesi = sorted(list(db["urunler"].keys()))
         secilen_mevcut = st.selectbox("💡 Mevcut bir ürüne stok ekleyecekseniz buradan seçin (Otomatik Doldurur):", ["Yeni Kart Oluştur"] + mevcut_urunler_listesi)
         
@@ -320,10 +363,8 @@ elif secilen_sayfa == "📊 Genel Stok Envanteri":
 # --- 5. YÖNETİM PANELİ ---
 elif secilen_sayfa == "📈 Yönetim Paneli":
     st.header("📈 Area Yönetim Paneli")
-    # SENİN SEKME YAPIN TAMAMEN GERİ GELDİ VE T4 EKLENDİ
     t1, t2, t3, t4 = st.tabs(["📊 Satış Raporları", "🗑️ Veri Yönetimi", "👥 Kullanıcı Yönetimi", "🏷️ Kategori Yönetimi"])
     
-    # SENİN YAZDIĞIN T1 KISMI (HİÇ DOKUNULMADI)
     with t1:
         tamam = [h for h in db["hareketler"] if h["durum"] == "Tamamlandı"]
         if tamam:
@@ -331,7 +372,6 @@ elif secilen_sayfa == "📈 Yönetim Paneli":
             st.metric("💰 Toplam Ciro", f"{df['fiyat'].sum():,.2f} ₺")
             st.dataframe(df[["id", "tarih_cikis", "firma", "urun", "adet", "fiyat"]], use_container_width=True, hide_index=True)
             
-    # SENİN YAZDIĞIN T2 KISMI
     with t2:
         if db["stok"]:
             sil = st.selectbox("Katalogdan Silinecek Ürün:", ["Seçiniz..."] + sorted(list(db["stok"].keys())))
@@ -342,7 +382,6 @@ elif secilen_sayfa == "📈 Yönetim Paneli":
                     if sil in taze_db["urunler"]: del taze_db["urunler"][sil]
                     if veritabanini_kaydet(taze_db): st.success("Silindi!"); st.rerun()
                     
-    # SENİN YAZDIĞIN T3 KISMI (SİLİNEN KISIM GERİ GETİRİLDİ, HİÇ DOKUNULMADI)
     with t3:
         kullanicilar = db.get("kullanicilar", {})
         st.dataframe(pd.DataFrame([{"Ad": k, "İsim": v["isim"], "Rol": v["rol"]} for k, v in kullanicilar.items()]), hide_index=True)
@@ -371,7 +410,6 @@ elif secilen_sayfa == "📈 Yönetim Paneli":
                     db["kullanicilar"][sec_k] = {"isim": y_i, "rol": y_r, "sifre": y_s}
                     if veritabanini_kaydet(db): st.success("Güncellendi!"); st.rerun()
 
-    # YENİ EKLENEN T4 KISMI
     with t4:
         st.subheader("🏷️ Kategori Yönetimi")
         mevcut_kategoriler = db.get("kategoriler", KATEGORILER)
