@@ -131,7 +131,7 @@ if st.sidebar.button("🚪 Güvenli Çıkış Yap", use_container_width=True):
     st.session_state["logged_in"] = False
     st.rerun()
 
-# --- 1. DEPO YÖNETİM (YENİ SEPET MANTIĞI) ---
+# --- 1. DEPO YÖNETİM (GÜNCELLENMİŞ SEPET MANTIĞI) ---
 if secilen_sayfa == "📦 Depo Yönetim Ekranı":
     st.header("📦 Depo Çıkış Paneli")
     
@@ -142,25 +142,25 @@ if secilen_sayfa == "📦 Depo Yönetim Ekranı":
     if not db["stok"]: st.warning("⚠️ Sistemde stok bulunmamaktadır.")
     else:
         st.subheader("🛒 1. Çıkış Sepetine Ürün Ekle")
-        with st.form("sepete_ekle_formu", clear_on_submit=True):
-            c_urun, c_adet = st.columns([3, 1])
-            urun = c_urun.selectbox("Çıkan Ürün (Cihaz):", sorted(list(db["stok"].keys())))
-            mevcut = db["stok"].get(urun, 0)
-            adet = c_adet.number_input(f"Miktar (Mevcut: {mevcut})", min_value=1, step=1)
-            
-            if st.form_submit_button("➕ Sepete Ekle"):
-                if adet > mevcut: 
-                    st.error(f"❌ Stok yetersiz! {urun} için mevcut adet: {mevcut}")
-                else:
-                    st.session_state["sepet"].append({"urun": urun, "adet": adet})
-                    st.success(f"✅ {adet} adet '{urun}' sepete eklendi!")
-                    st.rerun()
+        
+        # ALİCAN İÇİN DÜZELTME: Form yapısı kaldırıldı, anında senkronizasyon sağlandı.
+        c_urun, c_adet = st.columns([3, 1])
+        urun = c_urun.selectbox("Çıkan Ürün (Cihaz):", sorted(list(db["stok"].keys())))
+        mevcut = db["stok"].get(urun, 0)
+        adet = c_adet.number_input(f"Miktar (Mevcut: {mevcut})", min_value=1, step=1)
+        
+        if st.button("➕ Sepete Ekle", type="primary"):
+            if adet > mevcut: 
+                st.error(f"❌ Stok yetersiz! {urun} için mevcut adet: {mevcut}")
+            else:
+                st.session_state["sepet"].append({"urun": urun, "adet": adet})
+                st.success(f"✅ {adet} adet '{urun}' sepete eklendi!")
+                st.rerun()
 
         if st.session_state["sepet"]:
             st.markdown("---")
             st.subheader("📋 2. Sepetteki Ürünler ve Toplu Çıkış İşlemi")
             
-            # Ekranda şık bir sepet tablosu gösteriyoruz
             df_sepet = pd.DataFrame(st.session_state["sepet"])
             df_sepet.index += 1
             df_sepet.columns = ["Ürün", "Adet"]
@@ -201,7 +201,7 @@ if secilen_sayfa == "📦 Depo Yönetim Ekranı":
                                 taze_db["id_sayaci"] += 1
                             
                             if veritabanini_kaydet(taze_db): 
-                                st.session_state["sepet"] = [] # Başarılıysa sepeti sıfırla
+                                st.session_state["sepet"] = []
                                 st.success("✅ Çıkış Başarılı! Tüm ürünler Yönetici onayına iletildi.")
                                 st.rerun()
 
