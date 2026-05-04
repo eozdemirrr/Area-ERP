@@ -131,7 +131,7 @@ if st.sidebar.button("🚪 Güvenli Çıkış Yap", use_container_width=True):
     st.session_state["logged_in"] = False
     st.rerun()
 
-# --- 1. DEPO YÖNETİM (SEPET MANTIĞI) ---
+# --- 1. DEPO YÖNETİM ---
 if secilen_sayfa == "📦 Depo Yönetim Ekranı":
     st.header("📦 Depo Çıkış Paneli")
     
@@ -265,29 +265,57 @@ elif secilen_sayfa == "💼 Yönetici":
     st.subheader("🕒 Son 3 Ayda Onaylanan İşlemler")
     onaylananlar = [h for h in db["hareketler"] if h["durum"] in ["Fatura Bekliyor", "Tamamlandı"] and son_3_ayda_mi(h.get("tarih_onay", "-"))]
     if onaylananlar:
-        # YÖNETİCİ TABLOSUNA ADET SÜTUNU EKLENDİ
         df_onay = pd.DataFrame(onaylananlar)[["id", "tarih_onay", "firma", "urun", "adet", "fiyat", "durum"]]
         df_onay.columns = ["İşlem No", "Onay Tarihi", "Firma", "Ürün", "Adet", "Tutar (₺)", "Durum"]
         st.dataframe(df_onay, use_container_width=True, hide_index=True)
 
-# --- 3. FİNANS ---
+# --- 3. FİNANS (GÜNCELLENMİŞ TABLOLU EKRAN) ---
 elif secilen_sayfa == "🧾 Finans & Muhasebe":
     st.header("🧾 Fatura Kesim Paneli")
     bekleyenler = [h for h in db["hareketler"] if h["durum"] == "Fatura Bekliyor"]
     if not bekleyenler: st.success("Harika! Kesilmeyi bekleyen fatura yok.")
     else:
+        # FİRMALARA GÖRE AKILLI GRUPLAMA
+        gruplar = {}
         for islem in bekleyenler:
-            st.markdown(f"### 🔵 {islem['firma']}")
-            st.write(f"**Ürün:** {islem['urun']} | **Adet:** {islem['adet']} | **Bedel:** {islem['fiyat']:,.2f} ₺")
-            if st.button(f"✅ Faturası Kesildi (ID: {islem['id']})", use_container_width=True):
-                islem["durum"], islem["tarih_fatura"] = "Tamamlandı", datetime.now().strftime("%d.%m.%Y %H:%M:%S")
-                if veritabanini_kaydet(db): st.rerun()
+            firma = islem["firma"]
+            if firma not in gruplar:
+                gruplar[firma] = []
+            gruplar[firma].append(islem)
+            
+        for firma, islemler in gruplar.items():
+            st.markdown(f"### 🔵 {firma}")
+            
+            # Tablo oluşturma
+            df_tablo = pd.DataFrame(islemler)[["id", "tarih_cikis", "urun", "adet", "fiyat"]]
+            df_tablo["fiyat"] = df_tablo["fiyat"].apply(lambda x: f"{x:,.2f} ₺") # Tutarı TL formatına çevir
+            df_tablo.columns = ["İşlem No", "Çıkış Tarihi", "Ürün", "Adet", "Bedel"]
+            
+            # Şık bir tablo olarak ekrana bas
+            st.table(df_tablo.set_index("İşlem No"))
+            
+            # O firmaya ait toplam tutarı hesapla
+            toplam_tutar = sum([i["fiyat"] for i in islemler])
+            
+            c1, c2 = st.columns([3, 1])
+            c1.info(f"**💰 Toplam Fatura Bedeli:** {toplam_tutar:,.2f} ₺")
+            
+            grup_idleri = [i["id"] for i in islemler]
+            if c2.button(f"✅ Faturasını Kes", key=f"btn_fat_{firma}", use_container_width=True):
+                taze_db = veritabanini_yukle()
+                if taze_db:
+                    zaman = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+                    for h in taze_db["hareketler"]:
+                        if h["id"] in grup_idleri:
+                            h["durum"] = "Tamamlandı"
+                            h["tarih_fatura"] = zaman
+                    if veritabanini_kaydet(taze_db): st.rerun()
+            st.markdown("---")
 
     st.markdown("---")
     st.subheader("🕒 Son 3 Ayda Kesilen Faturalar")
     kesilenler = [h for h in db["hareketler"] if h["durum"] == "Tamamlandı" and son_3_ayda_mi(h.get("tarih_fatura", "-"))]
     if kesilenler:
-        # FİNANS TABLOSUNA DA ADET SÜTUNU EKLENDİ
         df_fatura = pd.DataFrame(kesilenler)[["id", "tarih_fatura", "firma", "urun", "adet", "fiyat"]]
         df_fatura.columns = ["İşlem No", "Fatura Tarihi", "Firma", "Ürün", "Adet", "Tutar (₺)"]
         st.dataframe(df_fatura, use_container_width=True, hide_index=True)
