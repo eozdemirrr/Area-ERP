@@ -18,12 +18,16 @@ if "logged_in" not in st.session_state:
     st.session_state["rol"] = ""
     st.session_state["isim"] = ""
 
+# --- TÜRKİYE SAATİ AYARI (UTC +3) ---
+def simdi():
+    return datetime.utcnow() + timedelta(hours=3)
+
 # --- BULUT VERİTABANI İŞLEMLERİ ---
 FIREBASE_URL = "https://areaerp-default-rtdb.europe-west1.firebasedatabase.app/area_db.json"
 
 def veritabanini_yukle():
     try:
-        cevap = requests.get(f"{FIREBASE_URL}?nocache={datetime.now().timestamp()}")
+        cevap = requests.get(f"{FIREBASE_URL}?nocache={simdi().timestamp()}")
         if cevap.status_code == 200:
             data = cevap.json()
             if data is None: data = {}
@@ -71,7 +75,7 @@ def son_3_ayda_mi(tarih_str):
     if not tarih_str or tarih_str == "-": return False
     try:
         t = datetime.strptime(tarih_str, "%d.%m.%Y %H:%M:%S")
-        return (datetime.now() - t).days <= 90
+        return (simdi() - t).days <= 90
     except: return False
 
 db = veritabanini_yukle()
@@ -178,7 +182,7 @@ if secilen_sayfa == "📦 Depo Yönetim Ekranı":
                     else:
                         taze_db = veritabanini_yukle()
                         if taze_db:
-                            zaman = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+                            zaman = simdi().strftime("%d.%m.%Y %H:%M:%S")
                             for item in st.session_state["sepet"]:
                                 u = item["urun"]
                                 a = item["adet"]
@@ -257,7 +261,7 @@ elif secilen_sayfa == "💼 Yönetici":
                                 if btn_onayla:
                                     taze_db["hareketler"][idx]["fiyat"] = y_fiyat
                                     taze_db["hareketler"][idx]["durum"] = "Fatura Bekliyor"
-                                    taze_db["hareketler"][idx]["tarih_onay"] = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+                                    taze_db["hareketler"][idx]["tarih_onay"] = simdi().strftime("%d.%m.%Y %H:%M:%S")
                                     
                                 if veritabanini_kaydet(taze_db): st.rerun()
 
@@ -269,13 +273,12 @@ elif secilen_sayfa == "💼 Yönetici":
         df_onay.columns = ["İşlem No", "Onay Tarihi", "Firma", "Ürün", "Adet", "Tutar (₺)", "Durum"]
         st.dataframe(df_onay, use_container_width=True, hide_index=True)
 
-# --- 3. FİNANS (GÜNCELLENMİŞ TABLOLU EKRAN) ---
+# --- 3. FİNANS ---
 elif secilen_sayfa == "🧾 Finans & Muhasebe":
     st.header("🧾 Fatura Kesim Paneli")
     bekleyenler = [h for h in db["hareketler"] if h["durum"] == "Fatura Bekliyor"]
     if not bekleyenler: st.success("Harika! Kesilmeyi bekleyen fatura yok.")
     else:
-        # FİRMALARA GÖRE AKILLI GRUPLAMA
         gruplar = {}
         for islem in bekleyenler:
             firma = islem["firma"]
@@ -285,18 +288,13 @@ elif secilen_sayfa == "🧾 Finans & Muhasebe":
             
         for firma, islemler in gruplar.items():
             st.markdown(f"### 🔵 {firma}")
-            
-            # Tablo oluşturma
             df_tablo = pd.DataFrame(islemler)[["id", "tarih_cikis", "urun", "adet", "fiyat"]]
-            df_tablo["fiyat"] = df_tablo["fiyat"].apply(lambda x: f"{x:,.2f} ₺") # Tutarı TL formatına çevir
+            df_tablo["fiyat"] = df_tablo["fiyat"].apply(lambda x: f"{x:,.2f} ₺")
             df_tablo.columns = ["İşlem No", "Çıkış Tarihi", "Ürün", "Adet", "Bedel"]
             
-            # Şık bir tablo olarak ekrana bas
             st.table(df_tablo.set_index("İşlem No"))
             
-            # O firmaya ait toplam tutarı hesapla
             toplam_tutar = sum([i["fiyat"] for i in islemler])
-            
             c1, c2 = st.columns([3, 1])
             c1.info(f"**💰 Toplam Fatura Bedeli:** {toplam_tutar:,.2f} ₺")
             
@@ -304,7 +302,7 @@ elif secilen_sayfa == "🧾 Finans & Muhasebe":
             if c2.button(f"✅ Faturasını Kes", key=f"btn_fat_{firma}", use_container_width=True):
                 taze_db = veritabanini_yukle()
                 if taze_db:
-                    zaman = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+                    zaman = simdi().strftime("%d.%m.%Y %H:%M:%S")
                     for h in taze_db["hareketler"]:
                         if h["id"] in grup_idleri:
                             h["durum"] = "Tamamlandı"
@@ -384,7 +382,7 @@ elif secilen_sayfa == "📊 Genel Stok Envanteri":
                 html_t += "</table>"
         
         if st_var:
-            trh = datetime.now().strftime("%d.%m.%Y")
+            trh = simdi().strftime("%d.%m.%Y")
             h_s = f"<html><body style='font-family:Arial;'><h1>AREA ENVANTER ({trh})</h1>{html_t}<script>window.onload=function(){{window.print();}}</script></body></html>"
             st.download_button("📥 Stok Raporunu İndir/Yazdır", data=h_s, file_name=f"Stok_{trh}.html", mime="text/html", use_container_width=True)
 
@@ -401,14 +399,51 @@ elif secilen_sayfa == "📈 Yönetim Paneli":
             st.dataframe(df[["id", "tarih_cikis", "firma", "urun", "adet", "fiyat"]], use_container_width=True, hide_index=True)
             
     with t2:
+        st.subheader("📦 Katalogdan Ürün Sil")
         if db["stok"]:
             sil = st.selectbox("Katalogdan Silinecek Ürün:", ["Seçiniz..."] + sorted(list(db["stok"].keys())))
-            if sil != "Seçiniz..." and st.button("🚨 SİL", type="primary"):
+            if sil != "Seçiniz..." and st.button("🚨 ÜRÜNÜ SİL", type="primary"):
                 taze_db = veritabanini_yukle()
                 if taze_db:
                     if sil in taze_db["stok"]: del taze_db["stok"][sil]
                     if sil in taze_db["urunler"]: del taze_db["urunler"][sil]
                     if veritabanini_kaydet(taze_db): st.success("Silindi!"); st.rerun()
+
+        st.markdown("---")
+        # YENİ: HATALI İŞLEM / SATIŞ İPTALİ BÖLÜMÜ
+        st.subheader("🔙 Hatalı İşlem / Satış İptali")
+        st.info("💡 Buradan iptal ettiğiniz işlemin cihazları otomatik olarak depoya geri eklenir.")
+        
+        islem_secenekleri = ["Seçiniz..."]
+        for h in db.get("hareketler", []):
+            # Durumunu da gösterelim ki hangi işlemi sildiğini net anlasın
+            islem_secenekleri.append(f"ID: {h['id']} | {h['firma']} | {h['urun']} ({h['adet']} Adet) - {h['durum']}")
+            
+        silinecek_islem_str = st.selectbox("İptal Edilecek İşlemi Seçin:", islem_secenekleri)
+        
+        if silinecek_islem_str != "Seçiniz..." and st.button("🚨 İŞLEMİ İPTAL ET VE STOĞU GERİ AL", type="primary"):
+            # İşlem ID'sini parçalayıp alıyoruz
+            secilen_id = int(silinecek_islem_str.split("|")[0].replace("ID:", "").strip())
+            
+            taze_db = veritabanini_yukle()
+            if taze_db:
+                idx_to_delete = None
+                for i, h in enumerate(taze_db["hareketler"]):
+                    if h["id"] == secilen_id:
+                        idx_to_delete = i
+                        break
+                        
+                if idx_to_delete is not None:
+                    iptal_edilen = taze_db["hareketler"].pop(idx_to_delete)
+                    i_urun = iptal_edilen["urun"]
+                    i_adet = iptal_edilen["adet"]
+                    
+                    # Stoğu depoya iade ediyoruz
+                    taze_db["stok"][i_urun] = taze_db["stok"].get(i_urun, 0) + i_adet
+                    
+                    if veritabanini_kaydet(taze_db): 
+                        st.success(f"✅ İşlem (ID: {secilen_id}) silindi! {i_adet} adet '{i_urun}' depoya geri eklendi.")
+                        st.rerun()
                     
     with t3:
         kullanicilar = db.get("kullanicilar", {})
