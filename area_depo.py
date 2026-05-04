@@ -131,11 +131,10 @@ if st.sidebar.button("🚪 Güvenli Çıkış Yap", use_container_width=True):
     st.session_state["logged_in"] = False
     st.rerun()
 
-# --- 1. DEPO YÖNETİM (GÜNCELLENMİŞ SEPET MANTIĞI) ---
+# --- 1. DEPO YÖNETİM (SEPET MANTIĞI) ---
 if secilen_sayfa == "📦 Depo Yönetim Ekranı":
     st.header("📦 Depo Çıkış Paneli")
     
-    # Sepeti başlat
     if "sepet" not in st.session_state:
         st.session_state["sepet"] = []
 
@@ -143,7 +142,6 @@ if secilen_sayfa == "📦 Depo Yönetim Ekranı":
     else:
         st.subheader("🛒 1. Çıkış Sepetine Ürün Ekle")
         
-        # ALİCAN İÇİN DÜZELTME: Form yapısı kaldırıldı, anında senkronizasyon sağlandı.
         c_urun, c_adet = st.columns([3, 1])
         urun = c_urun.selectbox("Çıkan Ürün (Cihaz):", sorted(list(db["stok"].keys())))
         mevcut = db["stok"].get(urun, 0)
@@ -267,8 +265,9 @@ elif secilen_sayfa == "💼 Yönetici":
     st.subheader("🕒 Son 3 Ayda Onaylanan İşlemler")
     onaylananlar = [h for h in db["hareketler"] if h["durum"] in ["Fatura Bekliyor", "Tamamlandı"] and son_3_ayda_mi(h.get("tarih_onay", "-"))]
     if onaylananlar:
-        df_onay = pd.DataFrame(onaylananlar)[["id", "tarih_onay", "firma", "urun", "fiyat", "durum"]]
-        df_onay.columns = ["İşlem No", "Onay Tarihi", "Firma", "Ürün", "Tutar (₺)", "Durum"]
+        # YÖNETİCİ TABLOSUNA ADET SÜTUNU EKLENDİ
+        df_onay = pd.DataFrame(onaylananlar)[["id", "tarih_onay", "firma", "urun", "adet", "fiyat", "durum"]]
+        df_onay.columns = ["İşlem No", "Onay Tarihi", "Firma", "Ürün", "Adet", "Tutar (₺)", "Durum"]
         st.dataframe(df_onay, use_container_width=True, hide_index=True)
 
 # --- 3. FİNANS ---
@@ -279,7 +278,7 @@ elif secilen_sayfa == "🧾 Finans & Muhasebe":
     else:
         for islem in bekleyenler:
             st.markdown(f"### 🔵 {islem['firma']}")
-            st.write(f"**Ürün:** {islem['urun']} | **Bedel:** {islem['fiyat']:,.2f} ₺")
+            st.write(f"**Ürün:** {islem['urun']} | **Adet:** {islem['adet']} | **Bedel:** {islem['fiyat']:,.2f} ₺")
             if st.button(f"✅ Faturası Kesildi (ID: {islem['id']})", use_container_width=True):
                 islem["durum"], islem["tarih_fatura"] = "Tamamlandı", datetime.now().strftime("%d.%m.%Y %H:%M:%S")
                 if veritabanini_kaydet(db): st.rerun()
@@ -288,8 +287,9 @@ elif secilen_sayfa == "🧾 Finans & Muhasebe":
     st.subheader("🕒 Son 3 Ayda Kesilen Faturalar")
     kesilenler = [h for h in db["hareketler"] if h["durum"] == "Tamamlandı" and son_3_ayda_mi(h.get("tarih_fatura", "-"))]
     if kesilenler:
-        df_fatura = pd.DataFrame(kesilenler)[["id", "tarih_fatura", "firma", "urun", "fiyat"]]
-        df_fatura.columns = ["İşlem No", "Fatura Tarihi", "Firma", "Ürün", "Tutar (₺)"]
+        # FİNANS TABLOSUNA DA ADET SÜTUNU EKLENDİ
+        df_fatura = pd.DataFrame(kesilenler)[["id", "tarih_fatura", "firma", "urun", "adet", "fiyat"]]
+        df_fatura.columns = ["İşlem No", "Fatura Tarihi", "Firma", "Ürün", "Adet", "Tutar (₺)"]
         st.dataframe(df_fatura, use_container_width=True, hide_index=True)
 
 # --- 4. STOK ENVANTERİ ---
