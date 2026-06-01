@@ -22,7 +22,7 @@ def simdi():
     return datetime.utcnow() + timedelta(hours=3)
 
 # 🔥 GİZLİ ANAHTAR (Bunu kendi Firebase anahtarınla doldur!)
-FIREBASE_GIZLI_ANAHTARI = "BURAYA_ANAHTARI_YAPISTIR"
+FIREBASE_GIZLI_ANAHTARI = "rMPqxkiWV0kBCUig343NLrgxMbElWeEmMJkmNJ2j"
 FIREBASE_URL = "https://areaerp-default-rtdb.europe-west1.firebasedatabase.app/area_db.json"
 
 def veritabanini_yukle():
