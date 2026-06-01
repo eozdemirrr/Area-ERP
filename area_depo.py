@@ -22,16 +22,14 @@ if "logged_in" not in st.session_state:
 def simdi():
     return datetime.utcnow() + timedelta(hours=3)
 
+# 🔥🔥 KRİTİK GÜVENLİK AYARI (VIP KART) 🔥🔥
+FIREBASE_GIZLI_ANAHTARI = "rMPqxkiWV0kBCUig343NLrgxMbElWeEmMJkmNJ2j"
+
 # --- BULUT VERİTABANI İŞLEMLERİ ---
 FIREBASE_URL = "https://areaerp-default-rtdb.europe-west1.firebasedatabase.app/area_db.json"
 
-# 🔥🔥 KRİTİK GÜVENLİK AYARI (VIP KART) 🔥🔥
-# Firebase'den kopyaladığın o uzun gizli anahtarı aşağıdaki tırnakların arasına yapıştır!
-FIREBASE_GIZLI_ANAHTARI = "rMPqxkiWV0kBCUig343NLrgxMbElWeEmMJkmNJ2j"
-
 def veritabanini_yukle():
     try:
-        # Artık VIP Kart ile giriş yapıyoruz ve cache sorununu engelliyoruz
         hedef_url = f"{FIREBASE_URL}?auth={FIREBASE_GIZLI_ANAHTARI}"
         cevap = requests.get(hedef_url, headers={"Cache-Control": "no-cache", "Pragma": "no-cache"})
         if cevap.status_code == 200:
@@ -44,6 +42,7 @@ def veritabanini_yukle():
             if "id_sayaci" not in data: data["id_sayaci"] = 1; tamir_edildi = True
             if "kullanicilar" not in data:
                 data["kullanicilar"] = {
+                    "satis": {"sifre": "1234", "rol": "Satış", "isim": "Satış Temsilcisi"},
                     "depo": {"sifre": "1234", "rol": "Depo", "isim": "Depo Sorumlusu"},
                     "muhasebe": {"sifre": "1234", "rol": "Finans", "isim": "Finans Departmanı"},
                     "servis": {"sifre": "1234", "rol": "Servis", "isim": "Servis Personeli"},
@@ -66,7 +65,6 @@ def veritabanini_yukle():
 def veritabanini_kaydet(db):
     if db is None: return False
     try:
-        # Kaydederken de VIP Kart kullanıyoruz
         hedef_url = f"{FIREBASE_URL}?auth={FIREBASE_GIZLI_ANAHTARI}"
         cevap = requests.put(hedef_url, json=db)
         return cevap.status_code == 200
@@ -122,7 +120,7 @@ if not st.session_state["logged_in"]:
     st.stop()
 
 # =====================================================================
-# ANA SİSTEM
+# ANA SİSTEM MENÜ YÖNETİMİ
 # =====================================================================
 logo_path = "logo.png"
 if os.path.exists(logo_path):
@@ -135,35 +133,39 @@ st.markdown("---")
 st.sidebar.success(f"👋 Hoş Geldin, {st.session_state['isim']}")
 st.sidebar.markdown("---")
 sayfalar = []
-if st.session_state["rol"] == "Depo": sayfalar = ["📦 Depo Yönetim Ekranı", "📊 Genel Stok Envanteri"]
+
+# Yeni Menü Dağılımı
+if st.session_state["rol"] == "Satış": sayfalar = ["📝 Sipariş Ekranı", "📊 Genel Stok Envanteri"]
+elif st.session_state["rol"] == "Depo": sayfalar = ["📦 Depo Yönetim Ekranı", "📊 Genel Stok Envanteri"]
 elif st.session_state["rol"] == "Finans": sayfalar = ["🧾 Finans & Muhasebe", "📊 Genel Stok Envanteri"]
 elif st.session_state["rol"] == "Servis": sayfalar = ["📊 Genel Stok Envanteri"]
-elif st.session_state["rol"] == "Yönetici": sayfalar = ["📦 Depo Yönetim Ekranı", "💼 Yönetici", "🧾 Finans & Muhasebe", "📊 Genel Stok Envanteri", "📈 Yönetim Paneli"]
+elif st.session_state["rol"] == "Yönetici": sayfalar = ["📝 Sipariş Ekranı", "📦 Depo Yönetim Ekranı", "💼 Yönetici", "🧾 Finans & Muhasebe", "📊 Genel Stok Envanteri", "📈 Yönetim Paneli"]
 
 secilen_sayfa = st.sidebar.radio("📁 Menü", sayfalar)
 if st.sidebar.button("🚪 Güvenli Çıkış Yap", use_container_width=True):
     st.session_state["logged_in"] = False
     st.rerun()
 
-# --- 1. DEPO YÖNETİM ---
-if secilen_sayfa == "📦 Depo Yönetim Ekranı":
-    st.header("📦 Depo Çıkış Paneli")
+# --- 0. YENİ: SİPARİŞ EKRANI (SATIŞ / YÖNETİCİ) ---
+if secilen_sayfa == "📝 Sipariş Ekranı":
+    st.header("📝 Yeni Satış & Sipariş Oluşturma Paneli")
+    st.info("💡 Buradan açtığınız siparişler direkt olarak Depo personelinin önüne düşecektir.")
     
     if "sepet" not in st.session_state:
         st.session_state["sepet"] = []
 
-    if not db["stok"]: st.warning("⚠️ Sistemde stok bulunmamaktadır.")
+    if not db["stok"]: st.warning("⚠️ Sistemde eklenecek stok bulunmamaktadır.")
     else:
-        st.subheader("🛒 1. Çıkış Sepetine Ürün Ekle")
+        st.subheader("🛒 1. Müşteri Sepetine Ürün Ekle")
         
         c_urun, c_adet = st.columns([3, 1])
-        urun = c_urun.selectbox("Çıkan Ürün (Cihaz):", sorted(list(db["stok"].keys())))
+        urun = c_urun.selectbox("Satılan Ürün (Cihaz):", sorted(list(db["stok"].keys())))
         mevcut = db["stok"].get(urun, 0)
         adet = c_adet.number_input(f"Miktar (Mevcut: {mevcut})", min_value=1, step=1)
         
         if st.button("➕ Sepete Ekle", type="primary"):
             if adet > mevcut: 
-                st.error(f"❌ Stok yetersiz! {urun} için mevcut adet: {mevcut}")
+                st.error(f"❌ Dikkat: Stok yetersiz! {urun} için depoda {mevcut} adet görünüyor.")
             else:
                 st.session_state["sepet"].append({"urun": urun, "adet": adet})
                 st.success(f"✅ {adet} adet '{urun}' sepete eklendi!")
@@ -171,7 +173,7 @@ if secilen_sayfa == "📦 Depo Yönetim Ekranı":
 
         if st.session_state["sepet"]:
             st.markdown("---")
-            st.subheader("📋 2. Sepetteki Ürünler ve Toplu Çıkış İşlemi")
+            st.subheader("📋 2. Siparişi Tamamla ve Depoya İlet")
             
             df_sepet = pd.DataFrame(st.session_state["sepet"])
             df_sepet.index += 1
@@ -182,11 +184,11 @@ if secilen_sayfa == "📦 Depo Yönetim Ekranı":
                 st.session_state["sepet"] = []
                 st.rerun()
                 
-            with st.form("depo_cikis_formu", clear_on_submit=True):
-                firma = st.text_input("Gideceği Firma / Şantiye:").upper().strip()
-                notlar = st.text_input("Ek Notlar / İrsaliye No:")
+            with st.form("siparis_tamamla_formu", clear_on_submit=True):
+                firma = st.text_input("Siparişi Veren Firma / Şantiye:").upper().strip()
+                notlar = st.text_input("Depo İçin Ek Notlar / Teslimat Bilgisi:")
                 
-                if st.form_submit_button("🚀 SEPETTEKİLERİ DEPODAN ÇIK"):
+                if st.form_submit_button("🚀 SİPARİŞİ ONAYLA VE DEPOYA GÖNDER"):
                     if firma == "": 
                         st.error("Lütfen Firma Adını Yazın!")
                     else:
@@ -196,17 +198,19 @@ if secilen_sayfa == "📦 Depo Yönetim Ekranı":
                             for item in st.session_state["sepet"]:
                                 u = item["urun"]
                                 a = item["adet"]
-                                taze_db["stok"][u] = taze_db["stok"].get(u, 0) - a
+                                
+                                # DİKKAT: STOK BURADA DÜŞMÜYOR, DEPO ÇIKIŞ YAPINCA DÜŞECEK!
                                 taze_db["hareketler"].insert(0, {
                                     "id": taze_db["id_sayaci"], 
-                                    "tarih_cikis": zaman, 
+                                    "tarih_siparis": zaman, # Siparişin açıldığı tarih
+                                    "tarih_cikis": "-", 
                                     "tarih_onay": "-", 
                                     "tarih_fatura": "-", 
                                     "urun": u, 
                                     "adet": a, 
                                     "firma": firma, 
                                     "notlar": notlar, 
-                                    "durum": "Fiyat Bekliyor", 
+                                    "durum": "Depo Bekliyor", # YENİ STATÜ
                                     "fiyat": 0, 
                                     "islem_yapan": st.session_state["kullanici"]
                                 })
@@ -214,12 +218,65 @@ if secilen_sayfa == "📦 Depo Yönetim Ekranı":
                             
                             if veritabanini_kaydet(taze_db): 
                                 st.session_state["sepet"] = []
-                                st.success("✅ Çıkış Başarılı! Tüm ürünler Yönetici onayına iletildi.")
+                                st.success("✅ Sipariş Başarıyla Depo Ekranına İletildi!")
                                 st.rerun()
 
+# --- 1. DEPO YÖNETİM (YENİLENMİŞ - SADECE ONAY EKRANI) ---
+elif secilen_sayfa == "📦 Depo Yönetim Ekranı":
+    st.header("📦 Depo Çıkış & Hazırlık Paneli")
+    st.info("Aşağıdaki listede Satış/Yönetici tarafından açılmış ve depodan çıkış yapması beklenen siparişler yer almaktadır.")
+    
+    bekleyen_siparisler = [h for h in db["hareketler"] if h.get("durum") == "Depo Bekliyor"]
+    
+    if not bekleyen_siparisler:
+        st.success("🎉 Harika! Şu an depodan çıkışı bekleyen hiçbir sipariş yok.")
+    else:
+        # Firmalara göre grupla ki Alican tek seferde çıkış yapabilsin
+        gruplar = {}
+        for islem in bekleyen_siparisler:
+            firma = islem["firma"]
+            if firma not in gruplar:
+                gruplar[firma] = []
+            gruplar[firma].append(islem)
+            
+        for firma, islemler in gruplar.items():
+            st.markdown(f"### 🔵 Müşteri: {firma}")
+            if islemler[0].get("notlar"):
+                st.caption(f"📝 Not: {islemler[0].get('notlar')}")
+                
+            df_tablo = pd.DataFrame(islemler)[["id", "tarih_siparis", "urun", "adet"]]
+            df_tablo.columns = ["İşlem No", "Sipariş Tarihi", "Hazırlanacak Ürün", "Adet"]
+            st.table(df_tablo.set_index("İşlem No"))
+            
+            grup_idleri = [i["id"] for i in islemler]
+            if st.button(f"🚀 {firma} SİPARİŞİNİ DEPODAN ÇIKART", key=f"btn_cikis_{firma}", use_container_width=True, type="primary"):
+                taze_db = veritabanini_yukle()
+                if taze_db:
+                    zaman = simdi().strftime("%d.%m.%Y %H:%M:%S")
+                    basarili = True
+                    for h in taze_db["hareketler"]:
+                        if h["id"] in grup_idleri:
+                            u = h["urun"]
+                            a = h["adet"]
+                            
+                            # STOK KONTROLÜ VE DÜŞÜLMESİ BURADA YAPILIYOR
+                            mevcut_stok = taze_db["stok"].get(u, 0)
+                            if mevcut_stok >= a:
+                                taze_db["stok"][u] = mevcut_stok - a
+                                h["durum"] = "Fiyat Bekliyor"
+                                h["tarih_cikis"] = zaman
+                            else:
+                                st.error(f"❌ Kritik Hata: {u} için depoda yeterli stok yok! (Mevcut: {mevcut_stok}, İstenen: {a})")
+                                basarili = False
+                                break # İşlemi durdur
+                    
+                    if basarili and veritabanini_kaydet(taze_db): 
+                        st.rerun()
+            st.markdown("---")
+
     st.markdown("---")
-    st.subheader("🕒 Son 3 Ayın Çıkış Kayıtları")
-    cikislar = [h for h in db["hareketler"] if son_3_ayda_mi(h.get("tarih_cikis", "-"))]
+    st.subheader("🕒 Son 3 Ayın Çıkış Kayıtları (Tamamlananlar)")
+    cikislar = [h for h in db["hareketler"] if son_3_ayda_mi(h.get("tarih_cikis", "-")) and h.get("durum") != "Depo Bekliyor"]
     if cikislar:
         df_cikis = pd.DataFrame(cikislar)[["id", "tarih_cikis", "firma", "urun", "adet", "durum"]]
         df_cikis.columns = ["İşlem No", "Çıkış Tarihi", "Firma", "Ürün", "Adet", "Durum"]
@@ -229,10 +286,10 @@ if secilen_sayfa == "📦 Depo Yönetim Ekranı":
 elif secilen_sayfa == "💼 Yönetici":
     st.header("💼 Yönetici Onay Paneli")
     bekleyenler = [h for h in db["hareketler"] if h["durum"] == "Fiyat Bekliyor"]
-    if not bekleyenler: st.success("Tebrikler, onay bekleyen işlem yok.")
+    if not bekleyenler: st.success("Tebrikler, fiyat onayı bekleyen çıkış işlemi yok.")
     else:
         for islem in bekleyenler:
-            with st.expander(f"🔴 {islem['firma']} | {islem['tarih_cikis']}", expanded=True):
+            with st.expander(f"🔴 {islem['firma']} | Çıkış: {islem['tarih_cikis']}", expanded=True):
                 with st.form(f"fiyat_form_{islem['id']}"):
                     c_f, c_u, c_a = st.columns([2, 3, 1])
                     
@@ -330,7 +387,7 @@ elif secilen_sayfa == "🧾 Finans & Muhasebe":
 
 # --- 4. STOK ENVANTERİ ---
 elif secilen_sayfa == "📊 Genel Stok Envanteri":
-    if st.session_state["rol"] in ["Yönetici", "Depo"]:
+    if st.session_state["rol"] in ["Yönetici", "Depo", "Satış"]:
         st.subheader("➕ Yeni Cihaz / Ürün Girişi")
         
         mevcut_urunler_listesi = sorted(list(db["urunler"].keys()))
@@ -420,19 +477,17 @@ elif secilen_sayfa == "📈 Yönetim Paneli":
                     if veritabanini_kaydet(taze_db): st.success("Silindi!"); st.rerun()
 
         st.markdown("---")
-        # YENİ: HATALI İŞLEM / SATIŞ İPTALİ BÖLÜMÜ
-        st.subheader("🔙 Hatalı İşlem / Satış İptali")
-        st.info("💡 Buradan iptal ettiğiniz işlemin cihazları otomatik olarak depoya geri eklenir.")
+        # GÜNCELLENMİŞ: HATALI İŞLEM / SATIŞ İPTALİ BÖLÜMÜ
+        st.subheader("🔙 Hatalı İşlem / Sipariş İptali")
+        st.info("💡 İptal edilen işlem depodan çıkmış durumdaysa cihazlar otomatik olarak stoğa geri eklenir.")
         
         islem_secenekleri = ["Seçiniz..."]
         for h in db.get("hareketler", []):
-            # Durumunu da gösterelim ki hangi işlemi sildiğini net anlasın
             islem_secenekleri.append(f"ID: {h['id']} | {h['firma']} | {h['urun']} ({h['adet']} Adet) - {h['durum']}")
             
         silinecek_islem_str = st.selectbox("İptal Edilecek İşlemi Seçin:", islem_secenekleri)
         
-        if silinecek_islem_str != "Seçiniz..." and st.button("🚨 İŞLEMİ İPTAL ET VE STOĞU GERİ AL", type="primary"):
-            # İşlem ID'sini parçalayıp alıyoruz
+        if silinecek_islem_str != "Seçiniz..." and st.button("🚨 İŞLEMİ İPTAL ET", type="primary"):
             secilen_id = int(silinecek_islem_str.split("|")[0].replace("ID:", "").strip())
             
             taze_db = veritabanini_yukle()
@@ -447,12 +502,17 @@ elif secilen_sayfa == "📈 Yönetim Paneli":
                     iptal_edilen = taze_db["hareketler"].pop(idx_to_delete)
                     i_urun = iptal_edilen["urun"]
                     i_adet = iptal_edilen["adet"]
+                    i_durum = iptal_edilen.get("durum", "")
                     
-                    # Stoğu depoya iade ediyoruz
-                    taze_db["stok"][i_urun] = taze_db["stok"].get(i_urun, 0) + i_adet
+                    # Eğer sipariş Depo'da bekliyorsa henüz stoktan düşmemiştir, stoğu geri eklemeye gerek yok.
+                    if i_durum != "Depo Bekliyor":
+                        taze_db["stok"][i_urun] = taze_db["stok"].get(i_urun, 0) + i_adet
+                        mesaj = f"✅ İşlem (ID: {secilen_id}) silindi! {i_adet} adet '{i_urun}' depoya geri eklendi."
+                    else:
+                        mesaj = f"✅ Henüz depodan çıkmayan Sipariş (ID: {secilen_id}) başarıyla iptal edildi."
                     
                     if veritabanini_kaydet(taze_db): 
-                        st.success(f"✅ İşlem (ID: {secilen_id}) silindi! {i_adet} adet '{i_urun}' depoya geri eklendi.")
+                        st.success(mesaj)
                         st.rerun()
                     
     with t3:
@@ -463,7 +523,7 @@ elif secilen_sayfa == "📈 Yönetim Paneli":
             n_k = c1.text_input("Kullanıcı Adı:").lower().strip()
             n_s = c2.text_input("Şifre:")
             n_i = st.text_input("Personel İsmi:")
-            n_r = st.selectbox("Rol:", ["Depo", "Finans", "Servis", "Yönetici"])
+            n_r = st.selectbox("Rol:", ["Satış", "Depo", "Finans", "Servis", "Yönetici"])
             if st.form_submit_button("Ekle"):
                 if n_k and n_s:
                     db["kullanicilar"][n_k] = {"sifre": n_s, "rol": n_r, "isim": n_i}
@@ -474,7 +534,7 @@ elif secilen_sayfa == "📈 Yönetim Paneli":
             with st.form("guncelle_f"):
                 p = kullanicilar[sec_k]
                 y_i = st.text_input("Görünür İsim:", value=p["isim"])
-                rllr = ["Depo", "Finans", "Servis", "Yönetici"]
+                rllr = ["Satış", "Depo", "Finans", "Servis", "Yönetici"]
                 try: idx = rllr.index(p.get("rol", "Depo"))
                 except: idx = 0
                 y_r = st.selectbox("Rol:", rllr, index=idx)
