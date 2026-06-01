@@ -134,7 +134,6 @@ st.sidebar.success(f"👋 Hoş Geldin, {st.session_state['isim']}")
 st.sidebar.markdown("---")
 sayfalar = []
 
-# Yeni Menü Dağılımı
 if st.session_state["rol"] == "Satış": sayfalar = ["📝 Sipariş Ekranı", "📊 Genel Stok Envanteri"]
 elif st.session_state["rol"] == "Depo": sayfalar = ["📦 Depo Yönetim Ekranı", "📊 Genel Stok Envanteri"]
 elif st.session_state["rol"] == "Finans": sayfalar = ["🧾 Finans & Muhasebe", "📊 Genel Stok Envanteri"]
@@ -146,7 +145,7 @@ if st.sidebar.button("🚪 Güvenli Çıkış Yap", use_container_width=True):
     st.session_state["logged_in"] = False
     st.rerun()
 
-# --- 0. YENİ: SİPARİŞ EKRANI (SATIŞ / YÖNETİCİ) ---
+# --- 0. SİPARİŞ EKRANI (SEVK ADRESİ EKLENDİ) ---
 if secilen_sayfa == "📝 Sipariş Ekranı":
     st.header("📝 Yeni Satış & Sipariş Oluşturma Paneli")
     st.info("💡 Buradan açtığınız siparişler direkt olarak Depo personelinin önüne düşecektir.")
@@ -186,6 +185,8 @@ if secilen_sayfa == "📝 Sipariş Ekranı":
                 
             with st.form("siparis_tamamla_formu", clear_on_submit=True):
                 firma = st.text_input("Siparişi Veren Firma / Şantiye:").upper().strip()
+                # YENİ EKLENEN SEVK ADRESİ ALANI
+                sevk_adresi = st.text_area("📍 Sevk Adresi / Teslimat Noktası (Opsiyonel):", placeholder="Açık adres, ilçe, vb. girebilirsiniz...").strip()
                 notlar = st.text_input("Depo İçin Ek Notlar / Teslimat Bilgisi:")
                 
                 if st.form_submit_button("🚀 SİPARİŞİ ONAYLA VE DEPOYA GÖNDER"):
@@ -199,18 +200,18 @@ if secilen_sayfa == "📝 Sipariş Ekranı":
                                 u = item["urun"]
                                 a = item["adet"]
                                 
-                                # DİKKAT: STOK BURADA DÜŞMÜYOR, DEPO ÇIKIŞ YAPINCA DÜŞECEK!
                                 taze_db["hareketler"].insert(0, {
                                     "id": taze_db["id_sayaci"], 
-                                    "tarih_siparis": zaman, # Siparişin açıldığı tarih
+                                    "tarih_siparis": zaman, 
                                     "tarih_cikis": "-", 
                                     "tarih_onay": "-", 
                                     "tarih_fatura": "-", 
                                     "urun": u, 
                                     "adet": a, 
                                     "firma": firma, 
+                                    "sevk_adresi": sevk_adresi, # ADRES VERİTABANINA İŞLENİYOR
                                     "notlar": notlar, 
-                                    "durum": "Depo Bekliyor", # YENİ STATÜ
+                                    "durum": "Depo Bekliyor", 
                                     "fiyat": 0, 
                                     "islem_yapan": st.session_state["kullanici"]
                                 })
@@ -221,7 +222,7 @@ if secilen_sayfa == "📝 Sipariş Ekranı":
                                 st.success("✅ Sipariş Başarıyla Depo Ekranına İletildi!")
                                 st.rerun()
 
-# --- 1. DEPO YÖNETİM (YENİLENMİŞ - SADECE ONAY EKRANI) ---
+# --- 1. DEPO YÖNETİM ---
 elif secilen_sayfa == "📦 Depo Yönetim Ekranı":
     st.header("📦 Depo Çıkış & Hazırlık Paneli")
     st.info("Aşağıdaki listede Satış/Yönetici tarafından açılmış ve depodan çıkış yapması beklenen siparişler yer almaktadır.")
@@ -231,7 +232,6 @@ elif secilen_sayfa == "📦 Depo Yönetim Ekranı":
     if not bekleyen_siparisler:
         st.success("🎉 Harika! Şu an depodan çıkışı bekleyen hiçbir sipariş yok.")
     else:
-        # Firmalara göre grupla ki Alican tek seferde çıkış yapabilsin
         gruplar = {}
         for islem in bekleyen_siparisler:
             firma = islem["firma"]
@@ -241,8 +241,11 @@ elif secilen_sayfa == "📦 Depo Yönetim Ekranı":
             
         for firma, islemler in gruplar.items():
             st.markdown(f"### 🔵 Müşteri: {firma}")
+            # DEPO EKRANINDA SEVK ADRESİNİ VE NOTLARI GÖSTERİYORUZ
+            if islemler[0].get("sevk_adresi"):
+                st.info(f"📍 **Sevk Adresi:** {islemler[0].get('sevk_adresi')}")
             if islemler[0].get("notlar"):
-                st.caption(f"📝 Not: {islemler[0].get('notlar')}")
+                st.caption(f"📝 **Ek Not:** {islemler[0].get('notlar')}")
                 
             df_tablo = pd.DataFrame(islemler)[["id", "tarih_siparis", "urun", "adet"]]
             df_tablo.columns = ["İşlem No", "Sipariş Tarihi", "Hazırlanacak Ürün", "Adet"]
@@ -259,7 +262,6 @@ elif secilen_sayfa == "📦 Depo Yönetim Ekranı":
                             u = h["urun"]
                             a = h["adet"]
                             
-                            # STOK KONTROLÜ VE DÜŞÜLMESİ BURADA YAPILIYOR
                             mevcut_stok = taze_db["stok"].get(u, 0)
                             if mevcut_stok >= a:
                                 taze_db["stok"][u] = mevcut_stok - a
@@ -268,7 +270,7 @@ elif secilen_sayfa == "📦 Depo Yönetim Ekranı":
                             else:
                                 st.error(f"❌ Kritik Hata: {u} için depoda yeterli stok yok! (Mevcut: {mevcut_stok}, İstenen: {a})")
                                 basarili = False
-                                break # İşlemi durdur
+                                break
                     
                     if basarili and veritabanini_kaydet(taze_db): 
                         st.rerun()
@@ -290,6 +292,10 @@ elif secilen_sayfa == "💼 Yönetici":
     else:
         for islem in bekleyenler:
             with st.expander(f"🔴 {islem['firma']} | Çıkış: {islem['tarih_cikis']}", expanded=True):
+                # YÖNETİCİ EKRANINDA FİYAT GİRERKEN BİLGİ AMAÇLI SEVK ADRESİ GÖSTERİMİ
+                if islem.get('sevk_adresi'):
+                    st.caption(f"📍 **Sevk Adresi:** {islem['sevk_adresi']}")
+                
                 with st.form(f"fiyat_form_{islem['id']}"):
                     c_f, c_u, c_a = st.columns([2, 3, 1])
                     
@@ -477,7 +483,6 @@ elif secilen_sayfa == "📈 Yönetim Paneli":
                     if veritabanini_kaydet(taze_db): st.success("Silindi!"); st.rerun()
 
         st.markdown("---")
-        # GÜNCELLENMİŞ: HATALI İŞLEM / SATIŞ İPTALİ BÖLÜMÜ
         st.subheader("🔙 Hatalı İşlem / Sipariş İptali")
         st.info("💡 İptal edilen işlem depodan çıkmış durumdaysa cihazlar otomatik olarak stoğa geri eklenir.")
         
@@ -504,7 +509,6 @@ elif secilen_sayfa == "📈 Yönetim Paneli":
                     i_adet = iptal_edilen["adet"]
                     i_durum = iptal_edilen.get("durum", "")
                     
-                    # Eğer sipariş Depo'da bekliyorsa henüz stoktan düşmemiştir, stoğu geri eklemeye gerek yok.
                     if i_durum != "Depo Bekliyor":
                         taze_db["stok"][i_urun] = taze_db["stok"].get(i_urun, 0) + i_adet
                         mesaj = f"✅ İşlem (ID: {secilen_id}) silindi! {i_adet} adet '{i_urun}' depoya geri eklendi."
