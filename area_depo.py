@@ -25,9 +25,15 @@ def simdi():
 # --- BULUT VERİTABANI İŞLEMLERİ ---
 FIREBASE_URL = "https://areaerp-default-rtdb.europe-west1.firebasedatabase.app/area_db.json"
 
+# 🔥🔥 KRİTİK GÜVENLİK AYARI (VIP KART) 🔥🔥
+# Firebase'den kopyaladığın o uzun gizli anahtarı aşağıdaki tırnakların arasına yapıştır!
+FIREBASE_GIZLI_ANAHTARI = "rMPqxkiWV0kBCUig343NLrgxMbElWeEmMJkmNJ2j"
+
 def veritabanini_yukle():
     try:
-        cevap = requests.get(f"{FIREBASE_URL}?nocache={simdi().timestamp()}")
+        # Artık VIP Kart ile giriş yapıyoruz ve cache sorununu engelliyoruz
+        hedef_url = f"{FIREBASE_URL}?auth={FIREBASE_GIZLI_ANAHTARI}"
+        cevap = requests.get(hedef_url, headers={"Cache-Control": "no-cache", "Pragma": "no-cache"})
         if cevap.status_code == 200:
             data = cevap.json()
             if data is None: data = {}
@@ -51,14 +57,18 @@ def veritabanini_yukle():
 
             if tamir_edildi: veritabanini_kaydet(data)
             return data
-    except:
-        st.error("⚠️ Bulut veritabanına bağlanılamadı!")
+        else:
+            st.error(f"⚠️ Güvenlik Bağlantı Hatası: Lütfen Gizli Anahtarın doğru olduğunu kontrol edin. (Hata: {cevap.status_code})")
+    except Exception as e:
+        st.error(f"⚠️ Bulut veritabanına bağlanılamadı! Detay: {e}")
     return None
 
 def veritabanini_kaydet(db):
     if db is None: return False
     try:
-        cevap = requests.put(FIREBASE_URL, json=db)
+        # Kaydederken de VIP Kart kullanıyoruz
+        hedef_url = f"{FIREBASE_URL}?auth={FIREBASE_GIZLI_ANAHTARI}"
+        cevap = requests.put(hedef_url, json=db)
         return cevap.status_code == 200
     except:
         return False
@@ -80,7 +90,7 @@ def son_3_ayda_mi(tarih_str):
 
 db = veritabanini_yukle()
 if db is None:
-    st.error("❌ Veritabanı bağlantısı koptu! Lütfen sayfayı yenileyin.")
+    st.error("❌ Veritabanı bağlantısı koptu! Lütfen sayfayı yenileyin veya internet bağlantınızı kontrol edin.")
     st.stop()
 
 KATEGORILER = db.get("kategoriler", ["VRF Dış", "VRF İç", "Multi Dış", "Multi İç", "Duvar Tipi Split", "Ticari Tip Split", "Yedek Parça", "Aksesuar", "Diğer"])
