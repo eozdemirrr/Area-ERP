@@ -134,8 +134,9 @@ st.sidebar.success(f"👋 Hoş Geldin, {st.session_state['isim']}")
 st.sidebar.markdown("---")
 sayfalar = []
 
+# --- DEĞİŞİKLİK BURADA: Depo kullanıcısına "Sipariş Ekranı" eklendi ---
 if st.session_state["rol"] == "Satış": sayfalar = ["📝 Sipariş Ekranı", "📊 Genel Stok Envanteri"]
-elif st.session_state["rol"] == "Depo": sayfalar = ["📦 Depo Yönetim Ekranı", "📊 Genel Stok Envanteri"]
+elif st.session_state["rol"] == "Depo": sayfalar = ["📝 Sipariş Ekranı", "📦 Depo Yönetim Ekranı", "📊 Genel Stok Envanteri"]
 elif st.session_state["rol"] == "Finans": sayfalar = ["🧾 Finans & Muhasebe", "📊 Genel Stok Envanteri"]
 elif st.session_state["rol"] == "Servis": sayfalar = ["📊 Genel Stok Envanteri"]
 elif st.session_state["rol"] == "Yönetici": sayfalar = ["📝 Sipariş Ekranı", "📦 Depo Yönetim Ekranı", "💼 Yönetici", "🧾 Finans & Muhasebe", "📊 Genel Stok Envanteri", "📈 Yönetim Paneli"]
